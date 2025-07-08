@@ -1,0 +1,66 @@
+import pandas as pd
+import psycopg2
+import yagmail
+import schedule
+import time
+from datetime import datetime
+
+# Configurações de banco -- Insira as credenciais Do Seu Banco de Dados
+DB_HOST = ''
+DB_PORT = ''
+DB_NAME = ''
+DB_USER = ''
+DB_PASS = ''
+
+# Configurações de e-mail -- Insira seu e-mail e o Destinatário
+EMAIL_FROM = ''
+EMAIL_TO = ['']
+EMAIL_BODY = 'Segue a base atualizada.'
+EMAIL_APP_PASSWORD = ''  # senha de app do Gmail, sem espaços - Gere uma senha aleatória no seu Gmail para aplicativos terceiros
+
+# Query SQL
+SQL_QUERY = """ --- INSIRA SUA QUERY AQUI """
+
+def enviar_relatorio():
+    try:
+        now_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+        filename = f'relatorio_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        email_subject = f'Base Sem Acesso - {now_str}'
+
+        # Conexão com Redshift - Altere para o seu banco de Dados
+        connection = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
+
+        # Executar a query e carregar no DataFrame
+        df = pd.read_sql_query(SQL_QUERY, con=connection)
+
+        # Fechar a conexão
+        connection.close()
+
+        # Salvar em Excel
+        df.to_excel(filename, index=False)
+
+        # Enviar e-mail com anexo usando senha de app
+        yag = yagmail.SMTP(user=EMAIL_FROM, password=EMAIL_APP_PASSWORD)
+        yag.send(to=EMAIL_TO, subject=email_subject, contents=EMAIL_BODY, attachments=filename)
+
+        print(f"✅ Relatório enviado com sucesso às {now_str}!")
+
+    except Exception as e:
+        print("❌ Erro durante a execução:")
+        print(e)
+
+# Agendamentos
+schedule.every().day.at("11:00").do(enviar_relatorio)
+schedule.every().day.at("16:30").do(enviar_relatorio)
+
+print("🕒 Script agendado para rodar diariamente às 11:30 e 16:30.")
+
+while True:
+    schedule.run_pending()
+    time.sleep(30)
